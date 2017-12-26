@@ -15,6 +15,7 @@ type DigestRequest struct {
 	Username string
 	Auth     *authorization
 	Wa       *wwwAuthenticate
+	header   http.Header
 }
 
 type DigestTransport struct {
@@ -23,9 +24,9 @@ type DigestTransport struct {
 }
 
 // NewRequest creates a new DigestRequest object
-func NewRequest(username, password, method, uri, body string) DigestRequest {
+func NewRequest(username, password, method, uri, body string, header http.Header) DigestRequest {
 	dr := DigestRequest{}
-	dr.UpdateRequest(username, password, method, uri, body)
+	dr.UpdateRequest(username, password, method, uri, body, header)
 	return dr
 }
 
@@ -39,12 +40,13 @@ func NewTransport(username, password string) DigestTransport {
 
 // UpdateRequest is called when you want to reuse an existing
 //  DigestRequest connection with new request information
-func (dr *DigestRequest) UpdateRequest(username, password, method, uri, body string) *DigestRequest {
+func (dr *DigestRequest) UpdateRequest(username, password, method, uri, body string, header http.Header) *DigestRequest {
 	dr.Body = body
 	dr.Method = method
 	dr.Password = password
 	dr.Uri = uri
 	dr.Username = username
+	dr.header = header
 	return dr
 }
 
@@ -54,6 +56,7 @@ func (dt *DigestTransport) RoundTrip(req *http.Request) (resp *http.Response, er
 	password := dt.Password
 	method := req.Method
 	uri := req.URL.String()
+	header := req.Header
 
 	var body string
 	if req.Body != nil {
@@ -62,7 +65,7 @@ func (dt *DigestTransport) RoundTrip(req *http.Request) (resp *http.Response, er
 		body = buf.String()
 	}
 
-	dr := NewRequest(username, password, method, uri, body)
+	dr := NewRequest(username, password, method, uri, body, header)
 	return dr.Execute()
 }
 
@@ -77,6 +80,8 @@ func (dr *DigestRequest) Execute() (resp *http.Response, err error) {
 	if req, err = http.NewRequest(dr.Method, dr.Uri, bytes.NewReader([]byte(dr.Body))); err != nil {
 		return nil, err
 	}
+
+	req.Header = dr.header
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -138,6 +143,8 @@ func (dr *DigestRequest) executeRequest(authString string) (resp *http.Response,
 	if req, err = http.NewRequest(dr.Method, dr.Uri, bytes.NewReader([]byte(dr.Body))); err != nil {
 		return nil, err
 	}
+
+	req.Header = dr.header
 
 	req.Header.Add("Authorization", authString)
 
